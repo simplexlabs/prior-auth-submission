@@ -129,21 +129,127 @@ CLINICAL_ANSWERS: ClinicalAnswers = {
 
 
 def _chart_notes_stub() -> bytes:
-    """Tiny in-memory PDF so the example runs without a companion file.
-    In production attach the real chart notes via a path:
-        documents=["/path/to/chart_notes.pdf"]"""
-    return (
-        b"%PDF-1.4\n"
-        b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
-        b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
-        b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<<>>/Contents 4 0 R>>endobj\n"
-        b"4 0 obj<</Length 56>>stream\n"
-        b"BT /F1 12 Tf 72 720 Td (Chart notes: BMI 28, comorbid HTN noted) Tj ET\n"
-        b"endstream endobj\n"
-        b"xref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n"
-        b"0000000053 00000 n \n0000000096 00000 n \n0000000174 00000 n \n"
-        b"trailer<</Size 5/Root 1 0 R>>\nstartxref\n270\n%%EOF\n"
+    """Multi-section example chart note that mirrors what a real PA reviewer
+    expects to see (demographics, vitals, history, weight-management program,
+    assessment/plan, prescriber attestation).
+
+    In production replace this with the real chart notes:
+        documents=["/path/to/chart_notes.pdf"]
+    """
+    import io
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import (
+        Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
     )
+    from reportlab.lib import colors
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=LETTER,
+        leftMargin=0.75 * inch, rightMargin=0.75 * inch,
+        topMargin=0.75 * inch, bottomMargin=0.75 * inch,
+    )
+    styles = getSampleStyleSheet()
+    h = ParagraphStyle("h", parent=styles["Heading2"], spaceAfter=4, textColor=colors.HexColor("#1a3a6c"))
+    body = ParagraphStyle("body", parent=styles["BodyText"], leading=14)
+
+    story = []
+    story.append(Paragraph("<b>Northwest Endocrinology Clinic</b><br/>2130 NW Lovejoy St, Suite 400, Portland, OR 97210<br/>Phone: (503) 555-0318  |  Fax: (503) 555-0319", body))
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("<b>OFFICE VISIT — PROGRESS NOTE</b>", styles["Heading1"]))
+    story.append(Spacer(1, 6))
+
+    demo = [
+        ["Patient:", "Nocito, Marco", "DOB:", "1987-08-22 (38 y/o, M)"],
+        ["MRN:", "PSHP8839241076", "Visit date:", "2026-04-24"],
+        ["Provider:", "Evelyn Harper, MD (NPI 1427389056)", "Insurance:", "CVS Caremark — BIN 004336 / PCN ADV"],
+    ]
+    t = Table(demo, colWidths=[0.9 * inch, 2.2 * inch, 0.9 * inch, 2.7 * inch])
+    t.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Chief complaint", h))
+    story.append(Paragraph("Obesity with weight-related comorbidities; failed comprehensive lifestyle intervention. Requesting initiation of GLP-1 receptor agonist (Wegovy) for chronic weight management.", body))
+    story.append(Spacer(1, 6))
+
+    story.append(Paragraph("Vitals (today)", h))
+    vitals = [
+        ["Height", "5'10\" (178 cm)", "BP", "138/86 mmHg"],
+        ["Weight", "195 lb (88.5 kg)", "HR", "78 bpm, regular"],
+        ["BMI", "28.0 kg/m²", "Waist circumference", "104 cm"],
+    ]
+    vt = Table(vitals, colWidths=[1.0 * inch, 2.0 * inch, 1.6 * inch, 2.1 * inch])
+    vt.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(vt)
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Active diagnoses", h))
+    story.append(Paragraph(
+        "• <b>E66.9</b> — Obesity, unspecified (BMI 28, weight-related comorbidities present)<br/>"
+        "• <b>I10</b> — Essential hypertension (on lisinopril 20 mg daily; SBP 130–140 range)<br/>"
+        "• <b>E78.5</b> — Hyperlipidemia (LDL 142 mg/dL on most recent lipid panel, 02/2026)<br/>"
+        "• <b>E11.9</b> — Pre-diabetes (HbA1c 6.0% on 03/2026; not yet meeting T2DM criteria)",
+        body,
+    ))
+    story.append(Spacer(1, 8))
+
+    story.append(Paragraph("Weight-management history (≥ 6 months structured program)", h))
+    story.append(Paragraph(
+        "Patient enrolled in our clinic's structured weight-management program from <b>09/2025 through 04/2026 (7 months)</b>. Components:<br/>"
+        "• Reduced-calorie diet — Mediterranean pattern, 1500–1700 kcal/day, supervised by RD (visits 09/15, 11/03, 12/19, 02/06, 03/27).<br/>"
+        "• Increased physical activity — graded exercise plan reaching 180 min/week moderate-intensity aerobic + 2× weekly resistance training; logged via Fitbit (avg 8,200 steps/day for the trailing 12 weeks).<br/>"
+        "• Behavioral modification — 6 cognitive-behavioral group sessions (10/02, 10/16, 11/13, 12/04, 01/15, 02/12).<br/>"
+        "Outcome: weight reduced from 207 lb (BMI 29.7) to 195 lb (BMI 28.0) — a <b>5.8% reduction</b>. Patient reports plateau over the past 8 weeks despite continued adherence.",
+        body,
+    ))
+    story.append(Spacer(1, 8))
+
+    story.append(Paragraph("Prior pharmacotherapy", h))
+    story.append(Paragraph(
+        "• <b>Phentermine 37.5 mg</b> daily — trialed 06/2025–08/2025; discontinued due to elevated BP (peak 152/94) and tachycardia.<br/>"
+        "• <b>Orlistat 120 mg</b> tid — trialed 04/2025–06/2025; discontinued due to intolerable GI side effects (steatorrhea).",
+        body,
+    ))
+    story.append(Spacer(1, 8))
+
+    story.append(Paragraph("Assessment", h))
+    story.append(Paragraph(
+        "38-year-old male with obesity (BMI 28) and multiple weight-related comorbidities (HTN, hyperlipidemia, pre-diabetes). Patient meets BMI ≥ 27 with weight-related comorbidity criterion per the Caremark UM policy for Wegovy initiation. Has completed > 6 months of structured comprehensive weight-management with reduced-calorie diet AND increased physical activity. Two prior pharmacotherapy trials failed. Wegovy is medically necessary to achieve clinically meaningful weight loss and reduce cardiometabolic risk.",
+        body,
+    ))
+    story.append(Spacer(1, 8))
+
+    story.append(Paragraph("Plan", h))
+    story.append(Paragraph(
+        "1. <b>Initiate Wegovy (semaglutide) 0.25 mg SC weekly × 4 weeks</b>, then escalate per FDA-labeled titration to maintenance dose 2.4 mg SC weekly. Continue reduced-calorie diet and physical activity.<br/>"
+        "2. Follow-up at 12 weeks for tolerability, weight, BP, and lipids; re-assess at 6 months for ≥ 5% baseline weight reduction (continuation criterion).<br/>"
+        "3. Submit prior authorization to CVS Caremark.",
+        body,
+    ))
+    story.append(Spacer(1, 14))
+
+    story.append(Paragraph(
+        "<i>I attest that the above clinical findings are accurate and that the requested therapy is medically necessary.</i><br/><br/>"
+        "<b>Evelyn Harper, MD</b><br/>NPI 1427389056  |  Endocrinology  |  04/24/2026",
+        body,
+    ))
+
+    doc.build(story)
+    return buf.getvalue()
 
 
 def main() -> None:
