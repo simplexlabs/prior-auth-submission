@@ -21,13 +21,14 @@ def _visible(node: dict, answers: dict) -> bool:
     if not v:
         return True
     prior = answers.get(v["depends_on"])
-    op, val = v["op"], v["value"]
+    op = v["op"]
+    if op == "answered":
+        return prior is not None
+    val = v.get("value")
     if op == "eq":
         return prior == val
     if op == "in":
         return prior in (val or [])
-    if op == "answered":
-        return prior is not None
     raise ValueError(f"unknown visibility op: {op!r}")
 
 
